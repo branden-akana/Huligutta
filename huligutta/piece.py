@@ -42,14 +42,14 @@ class Piece:
             # will place a Tiger if called from inside a Tiger,
             # and ditto for Goats
             target_pos.set_piece(type(self)(self.board, target_pos))
-            return f"{self.pos.address},\t{target_pos.address}"
+            res = f"{self.pos.address},\t{target_pos.address}"
+            self.pos = target_pos  # update position reference
+            return res
 
         print(f"unable to move this piece to {target_pos.address}")
         return None
 
-    def get_next_adjacent_pos(
-        self, target_pos: Position
-    ) -> Optional[Position]:
+    def get_next_adjacent_pos(self, target_pos: Position) -> Optional[Position]:
         """
         Return the next adjacent position after the target position. This is
         used for the Tiger capturing logic.
@@ -65,9 +65,7 @@ class Piece:
         if not self.pos.is_adjacent(target_pos):
             return None
 
-        landing_addr = address.move_towards(
-            self.pos.address, target_pos.address, 2
-        )
+        landing_addr = address.move_towards(self.pos.address, target_pos.address, 2)
 
         if landing_addr:
             new_pos = self.board.get_pos(landing_addr)
@@ -118,22 +116,6 @@ class Tiger(Piece):
         # a list of positions where moving to it will capture a piece
         capturing_moves: List[tuple] = []
 
-        # a list of capturing moves that are impossible to do
-        impossibles = [
-            "a1",
-            "a3",
-            "b4",
-            "f1",
-            "f3",
-            "b0",
-            "c0",
-            "d0",
-            "e0",
-            "e4",
-            "f4",
-            "a4",
-        ]
-
         # check adjacent positions and check if they're goats
         for goat_pos in self.pos.get_adjacent_positions():
             if isinstance(goat_pos.piece, Goat):
@@ -142,11 +124,9 @@ class Tiger(Piece):
 
                 if landing_addr:
                     # add a tuple of address and goat position
-                    capturing_moves.append(
-                        (self.board.get_pos(landing_addr), goat_pos)
-                    )
+                    capturing_moves.append((self.board.get_pos(landing_addr), goat_pos))
 
-        return [i for i in capturing_moves if i[0] not in impossibles]
+        return capturing_moves
 
     def can_capture_pos(self, addr: str) -> Optional[str]:
         """
@@ -157,7 +137,12 @@ class Tiger(Piece):
         """
         pos = self.board.get_pos(addr)
 
+        # if pos to capture not adjacent to this piece, cannot capture
         if not self.pos.is_adjacent(pos):
+            return None
+
+        # if pos is in a corner, cannot capture
+        if address.is_in_corner(addr):
             return None
 
         # check adjacent positions to the goat
@@ -165,9 +150,7 @@ class Tiger(Piece):
             if empty_pos is self.pos:
                 continue
 
-            delta = address.get_displacement(
-                self.pos.address, empty_pos.address
-            )
+            delta = address.get_displacement(self.pos.address, empty_pos.address)
             if delta not in [(0, 2), (2, 0), (0, -2), (-2, 0)]:
                 continue
 
@@ -214,9 +197,7 @@ class Tiger(Piece):
 
         self.pos.set_piece(())  # old position of tiger
         target_pos.set_piece(())  # captured goat piece
-        landing_pos.set_piece(
-            Tiger(self.board, landing_pos)
-        )  # new position of tiger
+        landing_pos.set_piece(Tiger(self.board, landing_pos))  # new position of tiger
 
         self.board.num_captured += 1  # increment captured pieces
         # print(f"the goat at {target_pos.address} has been captured")

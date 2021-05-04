@@ -7,7 +7,7 @@ __author__ = "Clyde James Felix"
 __email__ = "cjfelix.hawaii.edu"
 __status__ = "Dev"
 
-from huligutta import Board
+from huligutta import Board, Tiger
 from itertools import combinations
 from copy import deepcopy
 import networkx as nx
@@ -18,40 +18,40 @@ import numpy as np
 log_file = "dataset/data.txt"
 
 
-def optimal_stalemate(pos1, pos2, pos3):
+def get_optimal_stalemate(pos1: str, pos2: str, pos3: str) -> Board:
     """
     Returns the least amount of goats required to stalemate the tigers and the
     board at the end of the game
     """
 
-    # Clear Board
+    # create a new board
     board = Board()
 
+    # start by placing the three tigers
     board.place_tiger(pos1)
     board.place_tiger(pos2)
     board.place_tiger(pos3)
 
-    tiger_positions = pos1, pos2, pos3
+    tigers = board.get_all_tigers()
 
     positions = board.positions
 
-    for tiger_addr in tiger_positions:
-
-        tiger_pos = board.get_pos(tiger_addr)
-        tiger: Tiger = tiger_pos.piece
+    # first pass: place goats in all positions adjacent to the tigers
+    for tiger in tigers:
 
         # place goats in all positions adjacent to the tiger
-        for adj_pos in tiger_pos.get_adjacent_positions():
+        for adj_pos in tiger.pos.get_adjacent_positions():
             if adj_pos.is_empty():
                 adj_pos.place_goat()
+
+    # second pass: place goats to block all capturing moves
+    for tiger in tigers:
 
         # place goats in all capturing positions
         for capturing_addr in tiger.get_capturing_moves():
             board.place_goat(capturing_addr)
 
-    num_goats = board.num_pieces()[1]
-
-    return num_goats, board
+    return board
 
 
 def stalemate(pos1, pos2, pos3):
@@ -126,9 +126,9 @@ def edit_distance(board: Board) -> int:
     # return: edit distance value
 
     tigers = board.get_all_tiger_positions()
-    numGoats = len(board.get_all_goat_positions())
+    numGoats = board.get_num_goats()
 
-    _, stalemate_board = optimal_stalemate(
+    stalemate_board = get_optimal_stalemate(
         tigers[0].address, tigers[1].address, tigers[2].address
     )
     # _, stalematePositions = stalemate(tigers[0], tigers[1], tigers[2])
@@ -146,10 +146,7 @@ def edit_distance(board: Board) -> int:
             # print('DEBUG: possible_pos[pos] ', boardPosition[possible_pos[pos]], ' stalematePositions[stalematePos] ', stalematePositions[stalematePos])
             # print('DEBUG: pos ', possible_pos[pos], ' stalematePos ',stalematePos)
             # print(10 - num_moves(pos,stalematePos))
-            if (
-                board.get_pos(stalematePos.address).is_goat()
-                and stalematePos.is_goat()
-            ):
+            if board.get_pos(stalematePos.address).is_goat() and stalematePos.is_goat():
 
                 # print('stalematePos',stalematePos, 'weight',10 - num_moves(possible_pos[pos],stalematePos))
                 B.add_edge(
@@ -165,7 +162,11 @@ def edit_distance(board: Board) -> int:
     # Bipartite Max Matching
     # print(B.edges(data=True))
 
-    maxMatching = bipartite.minimum_weight_full_matching(B)
+    try:
+        maxMatching = bipartite.minimum_weight_full_matching(B)
+    except Exception:
+        return 0
+
     # print(maxMatching)
     Sum = 0
     # Collect sum of weights
@@ -347,4 +348,3 @@ def textCount(text):
 # possible_pos = list(Board().boardPositions.keys())
 # # print(possible_pos)
 # print(edit_distance(Board().boardPositions))
-

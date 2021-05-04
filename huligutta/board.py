@@ -1,6 +1,7 @@
-from typing import List, Optional
+from typing import List, Optional, cast
 from huligutta.position import Position
 from huligutta.piece import Piece, Tiger, Goat
+import copy
 import address
 
 
@@ -34,7 +35,10 @@ class Board:
         self.num_captured = 0
 
         # the number of moves made
-        self.num_moves = 0
+        # self.num_moves = 0
+
+        # the history of previous moves
+        self.move_history = []
 
         # if True, then 15 goats have been placed at one point
         self.is_all_goats_placed = False
@@ -62,10 +66,31 @@ class Board:
 
         # also reset the number of captured pieces
         self.num_captured = 0
-        self.num_moves = 0
+        self.move_history = []
         self.is_all_goats_placed = False
 
         # print("the board has been cleared")
+
+    def copy_board(self, original=None) -> dict:
+        """Copy the board state."""
+        original = original or self.positions
+        positions: dict = {}
+        for let in address.LETTERS:  # iterate through columns
+            positions[let] = {}
+            for num in address.NUMBERS:  # iterate through rows
+                addr = let + num
+                if address.is_valid(addr):
+                    if num == 0:
+                        pos = Position(self, "b0")
+                    else:
+                        pos = Position(self, addr)
+
+                    if original[let][int(num)].is_tiger():
+                        pos.place_tiger()
+                    elif original[let][int(num)].is_goat():
+                        pos.place_goat()
+                    positions[let][int(num)] = pos
+        return positions
 
     def print_board(self):
         """
@@ -99,6 +124,14 @@ class Board:
 
         return num_tigers, num_goats
 
+    def get_num_goats(self) -> int:
+        """Get the number of Goats."""
+        return len(self.get_all_goat_positions())
+
+    def get_num_tigers(self) -> int:
+        """Get the number of Tigers."""
+        return len(self.get_all_tiger_positions())
+
     def get_pos(self, addr: str) -> "Position":
         """Get a Position by its address."""
 
@@ -110,23 +143,31 @@ class Board:
 
         For a 2D list of positions, use self.position.
         """
-        flat_positions = [
-            j for i in self.positions.values() for j in i.values()
-        ]
+        flat_positions = [j for i in self.positions.values() for j in i.values()]
         # filter out non-positions
-        flat_positions = [
-            pos for pos in flat_positions if type(pos) is Position
-        ]
+        flat_positions = [pos for pos in flat_positions if type(pos) is Position]
         return flat_positions
 
     def get_all_goat_positions(self) -> List["Position"]:
+        """Get a list of all Positions on the board that are holding a Goat."""
         return [pos for pos in self.get_all_positions() if pos.is_goat()]
 
     def get_all_tiger_positions(self) -> List["Position"]:
+        """Get a list of all Positions on the board that are holding a Tiger."""
         return [pos for pos in self.get_all_positions() if pos.is_tiger()]
 
     def get_all_empty_positions(self) -> List["Position"]:
         return [pos for pos in self.get_all_positions() if pos.is_empty()]
+
+    def get_all_tigers(self) -> List[Tiger]:
+        """Get a list of all Tigers on the board."""
+        tiger_positions = self.get_all_tiger_positions()
+        return cast(List[Tiger], [pos.piece for pos in tiger_positions])
+
+    def get_all_goats(self) -> List[Goat]:
+        """Get a list of all Goats on the board."""
+        goat_positions = self.get_all_goat_positions()
+        return cast(List[Goat], [pos.piece for pos in goat_positions])
 
     def get_all_addresses(self) -> List[str]:
         return address.possible_pos
@@ -192,6 +233,15 @@ class Board:
 
         return moves
 
+    @property
+    def num_moves(self) -> int:
+        return len(self.move_history)
+
+    @property
+    def last_move(self) -> str:
+        """Return the notation of the last move that was made."""
+        return self.move_history[-1][0]
+
     def is_pos_safe(self, addr: str) -> bool:
         """Checks if a goat in this position could be captured."""
         for tiger_pos in self.get_all_tiger_positions():
@@ -209,23 +259,45 @@ class Board:
 
         return False
 
-    def place_tiger(self, addr: str):
-        """Place a Tiger at the position by its address."""
-        self.get_pos(addr).place_tiger()
+    def _push_move(self, notation: str):
+        """Push the move to the end of the move history."""
+        # copy the state of the board
+        self.positions_copy = self.copy_board()
+        # push it to the end of the move history
+        self.move_history.append((notation, self.positions_copy))
 
-    def place_goat(self, addr: str):
-        """Place a Goat at the position by its address."""
-        self.get_pos(addr).place_goat()
-        if len(self.get_all_goat_positions()) >= 15:
-            self.is_all_goats_placed = True
+    def undo_move(self, n=1):
+        """Restore a previous state of the board by n amount of moves."""
+        self.state = self.move_history[-n - 1]
+        self.positions = self.copy_board(self.state[1])
+        # delete all moves between the current state and the restored state
+        del self.move_history[-n:]
 
-    def clear_pos(self, addr: str):
-        """Clear the position by its address."""
-        self.get_pos(addr).clear()
+    def place_tiger(self, addr: str) -> bool:
+        """Place a Tiger at the position by its address.
+        Returns true if the move was successful."""
+        try:
+            self.get_pos(addr).place_tiger()
+            self._push_move(f"T{addr}")
+            return True
+        except Exception:
+            return False
 
-    def move_piece(self, addr_from: str, addr_to: str) -> Optional[str]:
+    def place_goat(self, addr: str) -> bool:
+        """Place a Goat at the position by its address.
+        Returns true if the move was successful."""
+        try:
+            self.get_pos(addr).place_goat()
+            if len(self.get_all_goat_positions()) >= 15:
+                self.is_all_goats_placed = True
+            self._push_move(f"G{addr}")
+            return True
+        except Exception:
+            return False
+
+    def move_piece(self, addr_from: str, addr_to: str) -> bool:
         """Move a piece between two positions by its address.
-        Returns the notation of the move if the move was successful."""
+        Returns true if the move was successful."""
 
         pos_from = self.get_pos(addr_from)
         pos_to = self.get_pos(addr_to)
@@ -235,8 +307,11 @@ class Board:
             res = piece.move(pos_to)
             # print(f"moved {piece} from {addr_from} to {addr_to}")
             if res:
-                self.num_moves += 1
+                self._push_move(res)
+                return True
+        return False
 
-            return res
+    def clear_pos(self, addr: str):
+        """Clear the position by its address."""
+        self.get_pos(addr).clear()
 
-        return None

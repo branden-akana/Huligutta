@@ -40,6 +40,25 @@ possible_pos = [
     "f3",
 ]
 
+# a list of all corner positions
+# pieces in these positions cannot be captured
+corner_positions = [
+    "a1",
+    "a3",
+    "b4",
+    "f1",
+    "f3",
+    "b0",
+    "c0",
+    "d0",
+    "e0",
+    "e4",
+]
+
+
+def is_in_corner(addr: str) -> bool:
+    return addr in corner_positions
+
 
 def to_indices(addr: str) -> tuple:
     """

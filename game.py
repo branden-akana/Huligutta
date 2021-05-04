@@ -112,9 +112,7 @@ class Main:
         self.is_running = True
 
         # For self.turn, Goat: False, Tiger: True
-        self.turn = (
-            False  # TODO: make this a number or string for readability?
-        )
+        self.turn = False  # TODO: make this a number or string for readability?
         self.initialize_board()
         self.canvas.pack()
 
@@ -159,6 +157,10 @@ class Main:
         self.reportBugbtn = Button(
             self.window, text="Report Bug", command=lambda: self.report_bug()
         ).place(x=70, y=boardSize - 15, anchor=CENTER)
+
+        self.btn_undo = Button(
+            self.window, text="Undo", command=lambda: self.undo_move()
+        ).place(x=170, y=boardSize - 15, anchor=CENTER)
 
         # Buttons
         # self.btn1  = Button(self.window, bd=buttonStyle,command=lambda : self.button_position('b0')).place(x=boardSize/2,y=boardSize/10,height=30,width=30,anchor=CENTER)
@@ -462,7 +464,7 @@ class Main:
                 # print('DEBUG: Adjacent',Piece(self.moving_from_pos).adjacent(pos))
                 # print('DEBUG: possiblemoves 2 ', Piece(self.moving_from_pos).possibleMoves())
 
-                if board.move_piece(self.moving_from_pos.address, addr):
+                if self.move_piece(self.moving_from_pos.address, addr):
                     if is_capturing_move:
                         self.goatEaten = self.goatEaten + 1
                     self.is_moving_piece = False
@@ -537,20 +539,28 @@ class Main:
     def move_piece(self, from_addr: str, to_addr: str) -> bool:
         """Move a piece on the board and log it.
         If the move is successful, returns True."""
-        notation = board.move_piece(from_addr, to_addr)
-        if notation:
-            printAndLog(notation)
-        return bool(notation)
+        success = board.move_piece(from_addr, to_addr)
+        if success:
+            printAndLog(board.last_move)
+        return success
 
     def place_goat(self, addr: str):
         """Place a piece on the board and log it."""
-        board.place_goat(addr)
-        printAndLog(f"G{addr}")
+        success = board.place_goat(addr)
+        if success:
+            printAndLog(board.last_move)
+        return success
 
     def place_tiger(self, addr: str):
         """Place a piece on the board and log it."""
-        board.place_tiger(addr)
-        printAndLog(f"T{addr}")
+        success = board.place_tiger(addr)
+        if success:
+            printAndLog(board.last_move)
+        return success
+
+    def undo_move(self, n=1):
+        board.undo_move()
+        self.update_game()
 
     def update_game(self):
         """Update the screen."""
@@ -597,20 +607,18 @@ class Main:
         """
         Logs important information about the state of the board.
         """
-        printAndLog("Move: " + str(self.moveCount))
-        printAndLog("--------------------")
-        printAndLog("Goats: " + str(self.goatCount))
+        # printAndLog("Move: " + str(self.moveCount))
+        # printAndLog("--------------------")
+        # printAndLog("Goats: " + str(self.goatCount))
         tigers = board.get_all_tiger_positions()
-        printAndLog("Tigers positions: " + str(tigers))
+        # printAndLog("Tigers positions: " + str(tigers))
         editDistance = edit_distance(board)
-        printAndLog("Edit distance: " + str(editDistance))
+        # printAndLog("Edit distance: " + str(editDistance))
 
     def update_canvas(self):
         """Updates any canvas items based on the state of the board."""
 
-        self.numGoats.set(
-            "Number of goats: %s" % len(board.get_all_goat_positions())
-        )
+        self.numGoats.set("Number of goats: %s" % len(board.get_all_goat_positions()))
         self.goatsEatentext.set("Goats eaten: %s" % board.num_captured)
 
         # if a piece was selected, display it
